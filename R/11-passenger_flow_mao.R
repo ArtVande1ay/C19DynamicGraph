@@ -41,4 +41,6 @@ air_dta$code <- make_unique_air_code(air_dta)
 
 air_dta <- arrange(air_dta, code)
 
-disaggregate_in_parts(air_dta, "output/data/daily_airflow_mao/", 100)
+save_object(air_dta, "air_dta")
+
+disaggregate_in_parts(air_dta, "output/data/daily_airflow_mao/", 10)

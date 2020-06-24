@@ -18,7 +18,7 @@ airport_codes <- readRDS(here::here("Rds", "airport_codes.Rds"))
 
 parse_T100 <- function(x) {
   x %>%
-    rename(
+    dplyr::rename(
       Prediction = PASSENGERS,
       Origin = ORIGIN,
       Dest = DEST
@@ -64,7 +64,9 @@ T100_2019 <- group_by(T100_2019, origin_country_name, origin_sub_region_1,
 
 T100_2019$code <- make_unique_air_code(T100_2019)
 
-disaggregate_in_parts(T100_2019, "outout/data/daily_airflow_T100_2019/", 100)
+save_object(T100_2019, "T100_2019")
+
+disaggregate_in_parts(T100_2019, "output/data/daily_airflow_T100_2019/", 10)
 
 T100_2020 <- parse_T100(T100_2020_raw)
 
@@ -86,4 +88,6 @@ T100_2020 <- group_by(T100_2020, origin_country_name, origin_sub_region_1,
 
 T100_2020$code <- make_unique_air_code(T100_2020)
 
-disaggregate_in_parts(as.matrix(T100_2020), "output/data/daily_airflow_T100_2020/", 10)
+save_object(T100_2020, "T100_2020")
+
+disaggregate_in_parts(T100_2020, "output/data/daily_airflow_T100_2020/", 10)

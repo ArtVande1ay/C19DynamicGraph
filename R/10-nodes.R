@@ -58,5 +58,21 @@ nodes <- left_join(nodes, weather_dta, by = c(
   c("FIPS", "date")
 ))
 
-write.csv(nodes, "output/data/nodes.csv")
 save_object(nodes, "nodes")
+
+write_in_parts <- function(x, K, folder) {
+  breaks <- seq(1, nrow(x), length.out = K + 1) %>% floor
+  breaks[length(breaks)] <- breaks[length(breaks)] + 1
+  lapply(1:K, function(k) {
+    w_subset <- breaks[k]:(breaks[k+1] - 1)
+    x_subset <- x[w_subset, ]
+    write.csv(
+      x_subset,
+      paste(folder, 
+            paste(as.character(k), ".csv", sep = ""),
+            sep = "")
+    )
+  })
+}
+
+write_in_parts(nodes, 10, here::here("output", "data", "nodes"))
