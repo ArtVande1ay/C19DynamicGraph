@@ -14,25 +14,19 @@ pop_dta <- readRDS(here::here("Rds", "pop_dta.Rds"))
 geocodes <- readRDS(here::here("Rds", "geocodes.Rds"))
 mobility_dta <- readRDS(here::here("Rds", "mobility_dta.Rds"))
 policy_dta <- readRDS(here::here("Rds", "policy_dta.Rds"))
-fips_table <- readRDS(here::here("Rds", "fips_table.Rds"))
 c19_dta <- readRDS(here::here("Rds", "c19_dta.Rds"))
-weather_dta <- readRDS(here::here("Rds", "weather_dta.Rds"))
 airport_codes <- readRDS(here::here("Rds", "airport_codes.Rds"))
 
 # Work --------------------------------------------------------------------
-
+cat("Creating nodes... "); flush.console()
 ### Plan: left join everything to pop_dta.
 nodes <- pop_dta 
 nodes <- left_join(nodes, geocodes, by = c(
-  c("country_name", "sub_region_1", "sub_region_2")
+  c("country_name", "sub_region_1")
 ))
 
 sum(is.na(nodes$lat)) ### = 0
 sum(is.na(nodes$lon)) ### = 0 hooray!
-
-nodes <- left_join(nodes, fips_table, by = c(
-  c("country_name", "sub_region_1", "sub_region_2")
-))
 
 ### The rest of our data is organized by day, so we duplicate the current
 ### node data once for each date.
@@ -41,22 +35,20 @@ nodes <- lapply(dates, function(date) cbind(nodes, date)) %>%
   rbind.fill
 
 nodes <- left_join(nodes, mobility_dta, by = c(
-  c("country_name", "sub_region_1", "sub_region_2", "date")
+  c("country_name", "sub_region_1", "date")
 ))
 
 nodes <- left_join(nodes, c19_dta, by = c(
-  c("country_name", "sub_region_1", "FIPS", "date")
+  c("country_name", "sub_region_1", "date")
 ))
 
 nodes <- left_join(nodes, policy_dta, by = c(
-  c("country_name", "sub_region_1", "sub_region_2", "date")
+  c("country_name", "sub_region_1", "date")
 ))
 
-nodes <- left_join(nodes, weather_dta, by = c(
-  c("FIPS", "date")
-))
+nodes$sub_region_1 <- state.abb[match(nodes$sub_region_1, state.name)]
 
-nodes$ID <- make_node_ID(nodes, "FIPS", "sub_region_1", "country_name")
+nodes$ID <- make_node_ID(nodes, "country_code", "sub_region_1")
 
 save_object(nodes, "nodes")
 
@@ -68,12 +60,19 @@ write_in_parts <- function(x, K, folder) {
     x_subset <- x[w_subset, ]
     write.csv(
       x_subset,
-      paste(folder, 
+      paste(paste(folder, "/nodes", sep=""), 
             paste(as.character(k), ".csv", sep = ""),
             sep = "")
     )
   })
 }
 
-write_in_parts(nodes, 10, here::here("output", "data", "nodes")) %>%
-  invisible
+nodes_usa <- filter(nodes, complete.cases(sub_region_1))
+nodes_usa <- nodes_usa[,-which(apply(nodes_usa, 2, function(x) sum(complete.cases(x))) == 0)]
+
+nodes_global <- filter(nodes, is.na(sub_region_1))
+nodes_global <- nodes_global[,-which(apply(nodes_global, 2, function(x) sum(complete.cases(x))) == 0)]
+
+write_in_parts(nodes_usa, nodes_usa_file_count, "output/data/nodes/usa")
+write_in_parts(nodes_global, nodes_global_file_count, "output/data/nodes/global")
+cat("Done.\n"); flush.console()

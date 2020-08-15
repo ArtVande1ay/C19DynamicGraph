@@ -13,8 +13,8 @@ source("src/00-common.R")
 airport_codes <- readRDS(here::here("Rds", "airport_codes_raw.Rds"))
 
 # Work --------------------------------------------------------------------
-
-### AIRPORT CODES: converting them to FIPS
+cat("Preparing airport codes..."); flush.console()
+### AIRPORT CODES: converting them to FIPS (not currently used)
 w_us_airports <- which(airport_codes$CountryCode == "US")
 us_airports <- airport_codes[w_us_airports, ]
 query_fips <- function(index) {
@@ -33,16 +33,6 @@ query_fips <- function(index) {
     html_nodes("county") %>%
     html_attr("fips")
 }
-airport_codes$FIPS <- NA
-airport_codes$FIPS[w_us_airports] <- lapply(1:length(w_us_airports), query_fips) %>%
-  unlist()
-
-### This below should = 0 (number of NA FIPS entries for US airports).
-filter(airport_codes, CountryCode == "US") %>%
-  .$FIPS %>%
-  is.na() %>%
-  sum()
-
 airport_codes <- airport_codes %>%
   dplyr::rename(
     airport_code = NodeName,
@@ -52,11 +42,11 @@ airport_codes <- airport_codes %>%
   select(
     airport_code,
     country_code,
-    sub_region_1,
-    FIPS
+    sub_region_1
   )
 
 w_not_us <- which(airport_codes$country_code != "US")
 airport_codes$sub_region_1[w_not_us] <- NA ### For non-US, state doesn't matter.
 
 save_object(airport_codes, "airport_codes")
+cat("Done.\n"); flush.console()

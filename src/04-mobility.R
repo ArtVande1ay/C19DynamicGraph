@@ -10,11 +10,11 @@ source("src/00-common.R")
 
 # Load objects ------------------------------------------------------------
 
-pop_dta <- readRDS(here::here("RDS", "pop_dta.Rds"))
+pop_dta <- readRDS(here::here("Rds", "pop_dta.Rds"))
 mobility_dta_raw <- readRDS(here::here("Rds", "mobility_dta_raw.Rds"))
 
 # Work --------------------------------------------------------------------
-
+cat("Preparing Google mobility data... "); flush.console()
 mobility_dta <- mobility_dta_raw %>%
   dplyr::rename(
     country_name = country_region
@@ -25,7 +25,6 @@ mobility_dta <- mobility_dta_raw %>%
   select(
     country_name,
     sub_region_1,
-    sub_region_2,
     date,
     retail_and_recreation_percent_change_from_baseline,
     grocery_and_pharmacy_percent_change_from_baseline,
@@ -70,3 +69,4 @@ pop_dta$country_name %>%
   length()
 
 save_object(mobility_dta, "mobility_dta")
+cat("Done.\n"); flush.console()

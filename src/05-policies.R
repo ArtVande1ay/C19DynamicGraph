@@ -10,11 +10,11 @@ source("src/00-common.R")
 
 # Load objects ------------------------------------------------------------
 
-policy_dta_raw <- readRDS(here::here("RDS", "policy_dta_raw.Rds"))
-pop_dta <- readRDS(here::here("RDS", "pop_dta.Rds"))
+policy_dta_raw <- readRDS(here::here("Rds", "policy_dta_raw.Rds"))
+pop_dta <- readRDS(here::here("Rds", "pop_dta.Rds"))
 
 # Work --------------------------------------------------------------------
-
+cat("Preparing policy data..."); flush.console()
 policy_dta <- policy_dta_raw %>%
   select(-c(
     "alpha_3_code",
@@ -22,8 +22,7 @@ policy_dta <- policy_dta_raw %>%
     "deaths"
   )) %>%
   mutate(
-    sub_region_1 = NA, ### For left_join.
-    sub_region_2 = NA ### For left_join.
+    sub_region_1 = NA
   )
 
 ### Countries in pop_dta but not in policy_dta.
@@ -41,3 +40,4 @@ policy_dta$country_name[which(policy_dta$country_name == "Gambia")] <- "The Gamb
 policy_dta$country_name[which(policy_dta$country_name == "Democratic Republic of Congo")] <- "Congo"
 
 save_object(policy_dta, "policy_dta")
+cat("Done.\n"); flush.console()

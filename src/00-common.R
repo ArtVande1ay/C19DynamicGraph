@@ -10,33 +10,44 @@ library(tidyverse)
 library(here)
 library(lubridate)
 library(plyr)
-mutate <- dplyr::mutate ### Otherwise Plyr masks this.
+### Function renaming in response to plyr masking
+mutate <- dplyr::mutate
 summarize <- dplyr::summarize
 rename <- dplyr::rename
 
 # Constants ---------------------------------------------------------------
+cat("Loading constants... "); flush.console()
 
 start_date <- as.Date("01-01-2020", format = "%m-%d-%Y")
-end_date <- as.Date("12-31-2020", format = "%m-%d-%Y")
+end_date <- as.Date("08-01-2020", format = "%m-%d-%Y")
+month_seq <- seq.Date(from = start_date, to = end_date, by = "month")
+day_seq <- seq.Date(from = start_date, to = end_date, by = "day")
+### How many different files to write (increase if running into RAM limitations)
+### Set to 10 to adhere to GitHub's maximum file size.
+passenger_flow_file_count <- 10
+nodes_global_file_count <- 5
+nodes_usa_file_count <- 5
 
+cat("Done.\n"); flush.console()
 # Functions ---------------------------------------------------------------
+cat("Loading functions... "); flush.console()
 
-### Given object, extract name and save to /Rds.
+## Input: (1) R object (2) char name
+## Output: NULL
+## Purpose: Save object to .Rds file under /Rds with given name.
 save_object <- function(x, object_name) {
   saveRDS(x, paste("Rds/",
     paste(object_name, ".Rds", sep = ""),
     sep = ""
     ) %>%
-      iconv ### Fixes some weird UTF-8 glitches.
+      iconv ### Fixes some weird UTF-8 bugs.
   )
 }
 
-### Turning monthly passenger flow data into daily data with linear smoothing.
-### We use a fast approximation of Chow-Lin method for temporal disaggregation.
-### This fulfills the aggregation constraint (monthly total = sum of daily).
+## Input: (1) dataframe with columns "Prediction" and "date"
+## Output: vector of disaggregated daily predictions ranging from start_date to end_date (constants)
+## Purpose: Create vector of disaggregated values for parse_origin_dest_dta function
 disaggregate <- function(x) {
-  ### Given a data_frame and variable to disaggregate, returns disaggregated
-  ### data going from 2020-01-01 to 2020-12-31
   x_sub <- x %>%
     ungroup %>%
     select(date, "Prediction") %>%
@@ -44,104 +55,99 @@ disaggregate <- function(x) {
       value = Prediction,
       time = date
     )
-  if (length(unique(x_sub$value)) == 1) {
-    return(rep(x_sub$value[1], 366))
-  } else {
-    td(x_sub ~ 1, to = "daily", method = "fast") %>%
-      predict() %>%
-      .$value %>%
-      floor
-  }
+  disaggregation <- td(x_sub ~ 1, to = "daily", method = "fast") %>%
+    predict()
+  disaggregation <- disaggregation[which(disaggregation$time %in% day_seq), ]
+  value <- disaggregation$value %>%
+    floor
+  negative_values <- which(value < 0)
+  value[negative_values] <- rep(0, length(negative_values))
+  return(value)
 }
 
 
-### Given subset of air_dta with unique origin & dest, disaggregate
-### prediction & lower/upper bounds.
-### If missing data, approximate as mean of available predictions.
+## Input: (1) dataframe with "origin" (and similar), "destination" (and similar), "date", and "Prediction" columns
+##        s.t. only one unique origin/destination pair (should be subset of passenger flow data)
+## Output: Same dataframe disaggregated to daily estimates.
+## Purpose: use "disaggregate" function to create modified dataframe
 parse_origin_dest_dta <- function(y) {
-  y <- distinct(y, date, .keep_all = TRUE)
-  if (length(y$date) < 12) {
-    dates_remaining <- seq.Date(from = start_date, to = end_date, by = "month")
-    dates_remaining <- dates_remaining[!dates_remaining %in% y$date] %>%
+  y <- distinct(y, date, .keep_all = TRUE) %>%
+    ungroup() %>%
+    select(origin_ID, dest_ID, ID, Prediction, date)
+  y <- y[which(y$date %in% month_seq), ]
+  if (length(y$date) < length(month_seq)) {
+    dates_remaining <- month_seq[!month_seq %in% y$date] %>%
       as.Date(origin="1970-01-01")
     n <- length(dates_remaining)
     y_add <- data.frame(
-      origin_country_name = rep(y$origin_country_name[1], n),
-      origin_sub_region_1 = rep(y$origin_sub_region_1[1], n),
-      origin_FIPS = rep(y$origin_FIPS[1], n),
-      dest_country_name = rep(y$dest_country_name[1], n),
-      dest_sub_region_1 = rep(y$dest_sub_region_1[1], n),
-      dest_FIPS = rep(y$dest_FIPS[1], n),
-      date = dates_remaining,
-      Prediction = rep(mean(y$Prediction), n),
       origin_ID = rep(y$origin_ID[1], n),
       dest_ID = rep(y$dest_ID[1], n),
-      ID = rep(y$ID[1], n)
+      ID = rep(y$ID[1], n),
+      Prediction = rep(0, n),
+      date = dates_remaining
     )
+    assertthat::are_equal(names(y), names(y_add))
     y <- rbind(y, y_add) %>%
       dplyr::arrange(date)
   }
-  y_Prediction <- disaggregate(y)
-  return(data.frame(
-    origin_country_name = rep(y$origin_country_name[1], 366), 
-    origin_sub_region_1 = rep(y$origin_sub_region_1[1], 366), 
-    origin_FIPS = rep(y$origin_FIPS[1], 366),
-    dest_country_name = rep(y$dest_country_name[1], 366), 
-    dest_sub_region_1 = rep(y$dest_sub_region_1[1], 366), 
-    dest_FIPS = rep(y$dest_FIPS[1], 366),
-    date=seq.Date(from = start_date, to = end_date, by = "day"), 
-    Prediction = y_Prediction, 
-    origin_ID = rep(y$origin_ID[1], 366),
-    dest_ID = rep(y$dest_ID[1], 366),
-    ID = rep(y$ID[1], 366)
-    )
+  num_days <- length(day_seq)
+  disaggregated_y <- data.frame(
+    origin_ID = rep(y$origin_ID[1], num_days),
+    dest_ID = rep(y$dest_ID[1], num_days),
+    ID = rep(y$ID[1], num_days),
+    Prediction = disaggregate(y),
+    date = day_seq
   )
+  return(disaggregated_y)
 }
 
 ### Disaggregates data and saves to to K .csv files. Decreases RAM usage.
+## Input: (1) air flow data (data.frame generated by files 11/12 from source)
+##        (2) folder to write to (char)
+##        (3) number of files to write (integer)
 disaggregate_in_parts <- function(dta, folder, K) {
   breaks <- seq(1, nrow(dta), length.out = K + 1) %>% floor
   breaks[length(breaks)] <- breaks[length(breaks)] + 1
   lapply(1:K, function(k) {
     w_subset <- breaks[k]:(breaks[k+1] - 1)
     dta_subset <- dta[w_subset, ]
-    disaggrogated <- split(dta_subset, dta_subset$ID) %>%
+    disaggregated <- split(dta_subset, dta_subset$ID) %>%
       lapply(., parse_origin_dest_dta) %>%
       rbind.fill
     write.csv(
-      disaggrogated,
+      disaggregated,
       paste(folder, 
             paste(as.character(k), ".csv", sep = ""),
             sep = "")
     )
-    rm(disaggrogated)
+    rm(disaggregated)
     rm(dta_subset)
-    cat("iteration ", k, "done\n")
-    flush.console()
+    cat("Disaggregation iteration ", k, "done\n"); flush.console()
   })
 }
 
-### Takes vector of airports, col_type=="Origin" or "Dest", and airport_codes.
-### Returns a data.frame of country_name/sub_region_1/FIPS for each airport.
+## Input: (1) Vector of airport codes (char)
+##        (2) col_type %in% c("Origin", "Dest")
+##        (3) airport_codes lookup table
+## Output: data.frame(country_name, sub_region_1)
+## Purpose: match airport codes to their location data
 airport_country_matcher <- function(airports, col_type, airport_codes) {
   n = length(airports)
   if (col_type == "Origin") {
     countries <- data.frame(
       origin_country_name = rep(NA, n),
-      origin_sub_region_1 = rep(NA, n),
-      origin_FIPS = rep(NA, n)
+      origin_sub_region_1 = rep(NA, n)
     )
   } else if (col_type == "Dest") {
     countries <- data.frame(
       dest_country_name = rep(NA, n),
-      dest_sub_region_1 = rep(NA, n),
-      dest_FIPS = rep(NA, n)
+      dest_sub_region_1 = rep(NA, n)
     )
   }
   lapply(unique(airports), function(x) {
     w_in_airports <- which(airports == x)
     w_in_airport_codes <- which(airport_codes$airport_code == x)
-    country <- airport_codes[w_in_airport_codes, 2:4]
+    country <- airport_codes[w_in_airport_codes, 2:3]
     if (nrow(country) == 0) {
       return()
     }
@@ -150,7 +156,8 @@ airport_country_matcher <- function(airports, col_type, airport_codes) {
   return(countries)
 }
 
-### Takes an char->integer converted FIPS code, returns corrected version.
+## Input: FIPS code of class integer
+## Output: FIPS code of class char
 FIPS_converter <- function(x) {
   if (is.na(x)) {
     return(NA)
@@ -160,28 +167,41 @@ FIPS_converter <- function(x) {
   return(paste(zeros, x, sep = ""))
 }
 
-make_node_ID <- function(x, FIPS_name, sub_region_1_name, country_name_name) {
-  if (sum(c(FIPS_name, sub_region_1_name, country_name_name) %in% names(x)) < 3) {
+## Input: (1) row of passenger flow data
+##        (2) FIPS column name
+##        (3) sub_region_1 column name
+##        (4) country_name column name
+## Output: Unique ID (char)
+make_node_ID <- function(x, sub_region_1_name, country_name_name) {
+  if (sum(c(sub_region_1_name, country_name_name) %in% names(x)) < 2) {
     stop("make_node_ID: given column names not found in x.")
   }
-  FIPS_col <- x[[FIPS_name]]
   sub_region_1_col <- x[[sub_region_1_name]]
   country_name_col <- x[[country_name_name]]
   paste(
-    FIPS_col,
-    paste(
-      sub_region_1_col,
-      country_name_col,
-      sep = ", "
-    ),
+    sub_region_1_col,
+    country_name_col,
     sep = ", "
   ) %>%
     return
 }
 
+## Input: (1) row containing origin_ID and dest_ID columns
+## Output: unique edge ID (char)
 make_edge_ID <- function(x) {
   if (sum(c("origin_ID", "dest_ID") %in% names(x)) < 2) {
     stop("make_edge_ID: x does not have origin_ID or dest_ID columns.")
   }
   paste(x$origin_ID, x$dest_ID, sep="-")
 }
+
+## Input: NULL
+## Output: NULL
+## Purpose: exit a script without an error
+stop_quietly <- function() {
+  opt <- options(show.error.messages = FALSE)
+  on.exit(options(opt))
+  stop()
+}
+
+cat("Done.\n"); flush.console()

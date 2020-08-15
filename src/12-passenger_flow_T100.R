@@ -13,8 +13,7 @@ library(tsbox)
 
 # Load objects ------------------------------------------------------------
 
-T100_2019_raw <- readRDS(here::here("Rds", "T100_2019_raw.Rds"))
-T100_2020_raw <- readRDS(here::here("Rds", "T100_2020_raw.Rds"))
+T100_raw <- readRDS(here::here("Rds", "T100_raw.Rds"))
 airport_codes <- readRDS(here::here("Rds", "airport_codes.Rds"))
 
 # Work --------------------------------------------------------------------
@@ -44,66 +43,34 @@ parse_T100 <- function(x) {
       MONTH = NULL
     )
 }
+cat("Preparing T100 passenger air flow data... ")
+T100 <- parse_T100(T100_raw)
 
-T100_2019 <- parse_T100(T100_2019_raw)
+T100$date <- T100$date + years(1)
 
-T100_2019$date <- T100_2019$date + years(1)
-
-T100_2019_origin_country_info <- airport_country_matcher(T100_2019$Origin, 
+T100_origin_country_info <- airport_country_matcher(T100$Origin, 
                                                          "Origin",
                                                          airport_codes)
-T100_2019 <- cbind(T100_2019, T100_2019_origin_country_info)
-T100_2019 <- T100_2019[complete.cases(T100_2019$origin_country_name), ]
+T100 <- cbind(T100, T100_origin_country_info)
+T100 <- T100[complete.cases(T100$origin_country_name), ]
 
-T100_2019_dest_country_info <- airport_country_matcher(T100_2019$Dest, "Dest",
+T100_dest_country_info <- airport_country_matcher(T100$Dest, "Dest",
                                                        airport_codes)
-T100_2019 <- cbind(T100_2019, T100_2019_dest_country_info)
-T100_2019 <- T100_2019[complete.cases(T100_2019$dest_country_name), ]
+T100 <- cbind(T100, T100_dest_country_info)
+T100 <- T100[complete.cases(T100$dest_country_name), ]
 
-T100_2019 <- group_by(T100_2019, origin_country_name, origin_sub_region_1,
-                      origin_FIPS, dest_country_name, dest_sub_region_1,
-                      dest_FIPS, date) %>%
+T100 <- group_by(T100, origin_country_name, origin_sub_region_1, dest_country_name, dest_sub_region_1, date) %>%
   dplyr::summarize(Prediction = sum(Prediction, na.rm = TRUE))
 
-T100_2019$origin_ID <- make_node_ID(T100_2019, "origin_FIPS",
-                                  "origin_country_name", "origin_sub_region_1")
-T100_2019$dest_ID<- make_node_ID(T100_2019, "dest_FIPS",
-                                  "dest_country_name", "dest_sub_region_1")
-T100_2019$ID <- make_edge_ID(T100_2019)
+T100$origin_ID <- make_node_ID(T100, "origin_country_name", "origin_sub_region_1")
+T100$dest_ID<- make_node_ID(T100, "dest_country_name", "dest_sub_region_1")
+T100$ID <- make_edge_ID(T100)
 
-T100_2019 <- arrange(T100_2019, ID)
+T100 <- arrange(T100, ID)
 
-save_object(T100_2019, "T100_2019")
-
-disaggregate_in_parts(T100_2019, "output/data/daily_airflow_T100_2019/", 10) %>%
+save_object(T100, "T100")
+cat("Done.\n")
+cat("Writing T100 data in parts...")
+disaggregate_in_parts(T100, "output/data/daily_airflow_T100_2019/usa/", passenger_flow_file_count) %>%
   invisible
-
-T100_2020 <- parse_T100(T100_2020_raw)
-
-T100_2020_origin_country_info <- airport_country_matcher(T100_2020$Origin, 
-                                                         "Origin",
-                                                         airport_codes)
-T100_2020 <- cbind(T100_2020, T100_2020_origin_country_info)
-T100_2020 <- T100_2020[complete.cases(T100_2020$origin_country_name), ]
-
-T100_2020_dest_country_info <- airport_country_matcher(T100_2020$Dest, "Dest",
-                                                       airport_codes)
-T100_2020 <- cbind(T100_2020, T100_2020_dest_country_info)
-T100_2020 <- T100_2020[complete.cases(T100_2020$origin_country_name), ]
-
-T100_2020 <- group_by(T100_2020, origin_country_name, origin_sub_region_1,
-                      origin_FIPS, dest_country_name, dest_sub_region_1,
-                      dest_FIPS, date) %>%
-  dplyr::summarize(Prediction = sum(Prediction, na.rm = TRUE))
-
-T100_2020$origin_ID <- make_node_ID(T100_2020, "origin_FIPS",
-                                  "origin_country_name", "origin_sub_region_1")
-T100_2020$dest_ID<- make_node_ID(T100_2020, "dest_FIPS",
-                                  "dest_country_name", "dest_sub_region_1")
-T100_2020$ID <- make_edge_ID(T100_2020)
-T100_2020 <- arrange(T100_2020, ID)
-
-save_object(T100_2020, "T100_2020")
-
-disaggregate_in_parts(T100_2020, "output/data/daily_airflow_T100_2020/", 10) %>%
-  invisible
+cat("Done.\n")

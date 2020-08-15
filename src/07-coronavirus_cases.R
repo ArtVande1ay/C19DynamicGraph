@@ -10,19 +10,28 @@ source("src/00-common.R")
 
 # Load objects ------------------------------------------------------------
 
-pop_dta <- readRDS(here::here("RDS", "pop_dta.Rds"))
+pop_dta <- readRDS(here::here("Rds", "pop_dta.Rds"))
 
 # Work --------------------------------------------------------------------
-
+cat("Preparing C19 data... "); flush.console()
 c19_dir <- "data/JHU_data/COVID-19-master/csse_covid_19_data/csse_covid_19_daily_reports/"
 c19_files <- list.files(c19_dir)
 c19_files <- c19_files[which(c19_files != "README.md")]
+c19_file_dates <- c19_files %>% 
+  strsplit("\\.") %>% 
+  lapply(function(x) x[1]) %>% 
+  unlist %>% 
+  as.Date(format = "%m-%d-%Y")
+c19_files <- c19_files[c19_file_dates %in% day_seq]
+
+remove_na <- function(x) {
+  x[is.na(x)]
+}
 
 read_c19_file <- function(file_name) {
   ### Takes file location, returns parsed data frame.
   file_date <- strsplit(file_name, "\\.")[[1]][1] ### Everything before .csv.
   file_date <- as.Date(file_date, format = "%m-%d-%Y")
-  
   ### Remove extra variables.
   dta <- read.csv(here::here(c19_dir, file_name)) %>%
     mutate(
@@ -55,10 +64,10 @@ read_c19_file <- function(file_name) {
   } else {
     stop("Can't find country/region column name.")
   }
+  dta <- filter(dta, country_name != "US")
   
   country_converter <- function(country) {
     ### Renames countries to coincide with our other datasets.
-    country[which(country == "US")] <- "United States"
     country[which(country == "Mainland China")] <- "China"
     country[which(country == "Hong Kong")] <- "China"
     country[which(country == "Bahamas")] <- "The Bahamas"
@@ -89,34 +98,11 @@ read_c19_file <- function(file_name) {
   ### Fix sub_region_1 col name.
   w_province <- agrep("Province", names(dta), value = FALSE)
   dta <- dplyr::rename(dta, sub_region_1 = names(dta)[w_province])
-  
-  ### Fix sub_region_2 col name.
-  if ("Admin2" %in% names(dta)) {
-    dta_us <- filter(dta, country_name == "United States")
-    dta <- filter(dta, country_name != "United States")
-    dta_us <- dta_us %>%
-      dplyr::rename(
-        sub_region_2 = `Admin2`
-      ) %>%
-      filter(
-        sub_region_2 != "Unassigned"
-      ) %>%
-      mutate(
-        sub_region_2 = NULL ### Badly named, just use FIPS.
-      ) %>%
-      select(
-        country_name,
-        sub_region_1,
-        FIPS,
-        Deaths,
-        Confirmed,
-        Recovered,
-        Active,
-      )
-  } else {
-    dta$sub_region_1 <- NA
-    dta_us <- NULL
-  }
+  w_empty <- which(dta$sub_region_1 == "")
+  dta$sub_region_1[w_empty] <- rep(NA, length(w_empty))
+  dta$`Admin2` <- NULL
+  dta$Incidence_Rate <- NULL
+  dta$Case.Fatality_Ratio <- NULL
   
   ### Sum non-US countries over sub_region_1/2.
   if ("Active" %in% names(dta)) {
@@ -135,8 +121,14 @@ read_c19_file <- function(file_name) {
         Deaths = replace_na(Deaths, 0),
         Confirmed = replace_na(Confirmed, 0),
         Recovered = replace_na(Recovered, 0),
-        Active = replace_na(Active, 0)
-      )
+        Active = Active,
+        Incident_Rate = NA,
+        People_Tested = NA,
+        People_Hospitalized = NA,
+        Mortality_Rate = NA,
+        Testing_Rate = NA,
+        Hospitalization_Rate = NA
+      ) %>% ungroup
   } else {
     dta <- dta %>%
       group_by(country_name) %>%
@@ -149,21 +141,94 @@ read_c19_file <- function(file_name) {
         country_name = country_name,
         sub_region_1 = NA,
         FIPS = NA,
-        Deaths = replace_na(Deaths, 0),
         Confirmed = replace_na(Confirmed, 0),
+        Deaths = replace_na(Deaths, 0),
         Recovered = replace_na(Recovered, 0),
-        Active = NA
+        Active = NA,
+        Incident_Rate = NA,
+        People_Tested = NA,
+        People_Hospitalized = NA,
+        Mortality_Rate = NA,
+        Testing_Rate = NA,
+        Hospitalization_Rate = NA
       )
   }
-  dta <- rbind(dta, dta_us)
-  dta$date <- file_date
-  dta$FIPS <- lapply(as.character(dta$FIPS), FIPS_converter) %>% unlist()
+  dta$date <- rep(file_date, nrow(dta))
+  dta$FIPS <- NULL
   return(dta)
 }
 
-c19_dta <- suppressMessages(lapply(c19_files, read_c19_file)) %>%
+c19_dta_global <- suppressMessages(lapply(c19_files, read_c19_file)) %>%
   rbind.fill
 
+c19_dir_usa <- "data/JHU_data/COVID-19-master/csse_covid_19_data/csse_covid_19_daily_reports_us/"
+c19_files_usa <- list.files(c19_dir_usa)
+c19_files_usa <- c19_files_usa[which(c19_files_usa != "README.md")]
+c19_file_dates_usa <- c19_files_usa %>% 
+  strsplit("\\.") %>% 
+  lapply(function(x) x[1]) %>% 
+  unlist %>% 
+  as.Date(format = "%m-%d-%Y")
+c19_files_usa <- c19_files_usa[c19_file_dates_usa %in% day_seq]
+
+read_c19_file_usa <- function(file_name) {
+  ### Takes file location, returns parsed data frame.
+  file_date <- strsplit(file_name, "\\.")[[1]][1] ### Everything before .csv.
+  file_date <- as.Date(file_date, format = "%m-%d-%Y")
+  ### Remove extra variables.
+  dta <- read.csv(here::here(c19_dir_usa, file_name)) %>%
+    mutate(
+      `Last Update` = NULL,
+      combined_key = NULL,
+      Lat = NULL,
+      Long = NULL,
+      `Long_` = NULL,
+      `Last_Update` = NULL,
+      Combined_Key = NULL,
+      `ISO3` = NULL,
+      UID = NULL,
+      FIPS = NULL
+    )
+  ### Fix country_name col name.
+  if ("Country/Region" %in% names(dta)) {
+    dta <- dplyr::rename(dta, country_name = `Country/Region`)
+  } else if ("Country.Region" %in% names(dta)) {
+    dta <- dplyr::rename(dta, country_name = `Country.Region`)
+  } else if ("Country_Region" %in% names(dta)) {
+    dta <- dplyr::rename(dta, country_name = `Country_Region`)
+  } else {
+    stop("Can't find country/region column name.")
+  }
+  
+  ### Fix sub_region_1 col name.
+  w_province <- agrep("Province", names(dta), value = FALSE)
+  dta <- dplyr::rename(dta, sub_region_1 = names(dta)[w_province])
+  w_empty <- which(dta$sub_region_1 == "")
+  dta$sub_region_1[w_empty] <- rep(NA, length(w_empty))
+  dta$date <- rep(file_date, nrow(dta))
+  dta$country_name <- rep("United States", nrow(dta))
+  dta <- rbind(dta, data.frame(
+    sub_region_1 = NA,
+    country_name = "United States",
+    Confirmed = sum(dta$Confirmed, na.rm = TRUE),
+    Deaths = sum(dta$Deaths, na.rm = TRUE),
+    Recovered = sum(dta$Recovered, na.rm = TRUE),
+    Active = sum(dta$Active, na.rm = TRUE),
+    Incident_Rate = NA,
+    People_Tested = sum(dta$People_Tested, na.rm = TRUE),
+    People_Hospitalized = sum(dta$People_Hospitalized, na.rm = TRUE),
+    Mortality_Rate = NA,
+    Testing_Rate = NA,
+    Hospitalization_Rate = NA,
+    date = file_date
+  ))
+  return(dta)
+}
+
+c19_dta_usa <- suppressMessages(lapply(c19_files_usa, read_c19_file_usa)) %>%
+  rbind.fill
+
+c19_dta <- rbind(c19_dta_global, c19_dta_usa)
 
 ### Countries in pop_dta but not in c19_dta.
 setdiff(unique(pop_dta$country_name), unique(c19_dta$country_name)) %>% sort()
@@ -171,11 +236,5 @@ setdiff(unique(pop_dta$country_name), unique(c19_dta$country_name)) %>% sort()
 ### Countries in c19_dta but not in pop_dta.
 setdiff(unique(c19_dta$country_name), unique(pop_dta$country_name)) %>% sort()
 
-
-### Can't do any modeling without C19 data, might as well remove.
-no_c19_dta <- setdiff(unique(pop_dta$country_name), unique(c19_dta$country_name))
-w_no_c19_dta <- which(pop_dta$country_name %in% no_c19_dta)
-pop_dta <- pop_dta[-w_no_c19_dta, ]
-
-save_object(pop_dta, "pop_dta")
 save_object(c19_dta, "c19_dta")
+cat("Done.\n"); flush.console()

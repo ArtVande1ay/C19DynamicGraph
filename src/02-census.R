@@ -16,6 +16,7 @@ country_pop_dta_raw <- readRDS(here::here("Rds", "country_pop_dta_raw.Rds"))
 us_pop_dta_raw <- readRDS(here::here("Rds", "us_pop_dta_raw.Rds"))
 
 # Work --------------------------------------------------------------------
+cat("Preparing census data... "); flush.console()
 
 country_pop_dta <- country_pop_dta_raw %>%
   filter(
@@ -23,19 +24,12 @@ country_pop_dta <- country_pop_dta_raw %>%
   ) %>%
   mutate(
     sub_region_1 = NA,
-    sub_region_2 = NA,
     year = NULL 
   ) %>%
   dplyr::rename(
     pop = midyear_population
   ) %>%
-  relocate(sub_region_1, .after = country_name) %>%
-  relocate(sub_region_2, .after = country_name)
-
-country_pop_dta <- country_pop_dta[-which(
-  country_pop_dta$country_name == "United States",
-  complete.cases(country_pop_dta$sub_region_1)
-), ]
+  relocate(sub_region_1, .after = country_name)
 
 country_pop_dta$country_name[which(country_pop_dta$country_name == "Korea, South")] <- "South Korea"
 country_pop_dta$country_name[which(country_pop_dta$country_name == "Korea, North")] <- "North Korea"
@@ -63,5 +57,9 @@ us_pop_dta <- us_pop_dta_raw %>%
     .after = country_code
   )
 
+us_pop_dta <- filter(us_pop_dta, sub_region_1 == sub_region_2)
+us_pop_dta$sub_region_2 <- NULL
+
 pop_dta <- rbind(us_pop_dta, country_pop_dta)
 save_object(pop_dta, "pop_dta")
+cat("Done.\n"); flush.console()
