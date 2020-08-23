@@ -46,7 +46,9 @@ nodes <- left_join(nodes, policy_dta, by = c(
   c("country_name", "sub_region_1", "date")
 ))
 
-nodes$sub_region_1 <- state.abb[match(nodes$sub_region_1, state.name)]
+m <- match(nodes$sub_region_1, state.name)
+w <- which(complete.cases(m))
+nodes$sub_region_1[w] <- state.abb[m[w]]
 
 nodes$ID <- make_node_ID(nodes, "country_code", "sub_region_1")
 

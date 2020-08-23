@@ -16,6 +16,7 @@ mobility_dta_raw <- readRDS(here::here("Rds", "mobility_dta_raw.Rds"))
 # Work --------------------------------------------------------------------
 cat("Preparing Google mobility data... "); flush.console()
 mobility_dta <- mobility_dta_raw %>%
+  filter(is.na(sub_region_2)) %>%
   dplyr::rename(
     country_name = country_region
   ) %>%
@@ -40,6 +41,9 @@ w_sub_region_1_not_us <- which(
 
 ### Don't have any granularity of data for non-US countries.
 mobility_dta <- mobility_dta[-w_sub_region_1_not_us, ]
+
+mobility_dta <- mobility_dta %>%
+  distinct(country_name, sub_region_1, date)
 
 # Analysis of missing data ------------------------------------------------
 
