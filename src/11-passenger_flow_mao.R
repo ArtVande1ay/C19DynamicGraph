@@ -47,8 +47,7 @@ mao_dta_usa$ID <- make_edge_ID(mao_dta_usa)
 
 mao_dta_usa <- arrange(mao_dta_usa, ID)
 
-mao_dta_global_with_usa <- filter(mao_dta, origin_country_name == "US" | dest_country_name == "US",
-                                  dest_country_name != "US") %>%
+mao_dta_global_with_usa <- filter(mao_dta, origin_country_name == "US" | dest_country_name == "US") %>%
   group_by(
     origin_country_name,
     dest_country_name,

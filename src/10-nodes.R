@@ -52,6 +52,27 @@ nodes$sub_region_1[w] <- state.abb[m[w]]
 
 nodes$ID <- make_node_ID(nodes, "country_code", "sub_region_1")
 
+delta_calculator <- function(x) {
+  return(c(NA, diff(x, 1)))
+}
+
+nodes <- nodes %>%
+  group_by(country_name, sub_region_1) %>%
+  dplyr::arrange(date, .by_group=TRUE) %>%
+  mutate(confirmed_delta = delta_calculator(Confirmed),
+         deaths_delta = delta_calculator(Deaths),
+         recovered_delta = delta_calculator(Recovered),
+         active_delta = delta_calculator(Active),
+         retail_delta = delta_calculator(retail_and_recreation_percent_change_from_baseline),
+         grocery_delta = delta_calculator(grocery_and_pharmacy_percent_change_from_baseline),
+         parks_delta = delta_calculator(parks_percent_change_from_baseline),                
+         transit_delta = delta_calculator(transit_stations_percent_change_from_baseline),
+         workplace_delta = delta_calculator(workplaces_percent_change_from_baseline),         
+         residential_delta = delta_calculator(residential_percent_change_from_baseline),  
+         susceptible_density = (pop-Confirmed)/pop,
+         infected_density = Active/pop) %>%
+  ungroup()
+
 save_object(nodes, "nodes")
 
 write_in_parts <- function(x, K, folder) {

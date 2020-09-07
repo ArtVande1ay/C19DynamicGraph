@@ -43,7 +43,7 @@ w_sub_region_1_not_us <- which(
 mobility_dta <- mobility_dta[-w_sub_region_1_not_us, ]
 
 mobility_dta <- mobility_dta %>%
-  distinct(country_name, sub_region_1, date)
+  distinct(country_name, sub_region_1, date, .keep_all = TRUE)
 
 # Analysis of missing data ------------------------------------------------
 

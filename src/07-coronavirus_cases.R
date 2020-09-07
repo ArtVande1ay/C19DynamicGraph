@@ -64,7 +64,7 @@ read_c19_file <- function(file_name) {
   } else {
     stop("Can't find country/region column name.")
   }
-  dta <- filter(dta, country_name != "US")
+  dta <- filter(dta, country_name != "US" | file_date < as.Date("2020-04-12"))
   
   country_converter <- function(country) {
     ### Renames countries to coincide with our other datasets.
@@ -88,6 +88,7 @@ read_c19_file <- function(file_name) {
     country[which(country == "Taiwan*")] <- "Taiwan"
     country[which(country == "Viet Nam")] <- "Vietnam"
     country[which(country == "UK")] <- "United Kingdom"
+    country[which(country == "US")] <- "United States"
     country[which(country == "Republic of the Congo")] <- "Congo"
     country[which(country == "Republic of Korea")] <- "South Korea"
     return(country)

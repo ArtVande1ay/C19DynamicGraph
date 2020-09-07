@@ -25,6 +25,15 @@ policy_dta <- policy_dta_raw %>%
     sub_region_1 = NA
   )
 
+policy_dta$num_NAs = apply(policy_dta, 1, function(x) sum(is.na(x)))
+policy_dta <- policy_dta %>%
+  group_by(country_name, date) %>%
+  filter(row_number() == which.min(num_NAs)) %>%
+  ungroup()
+
+policy_dta$num_NAs = NULL
+
+
 ### Countries in pop_dta but not in policy_dta.
 setdiff(unique(pop_dta$country_name), unique(policy_dta$country_name)) %>% sort
 
