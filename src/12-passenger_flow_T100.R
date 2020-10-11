@@ -46,8 +46,6 @@ parse_T100 <- function(x) {
 cat("Preparing T100 passenger air flow data... ")
 T100 <- parse_T100(T100_raw)
 
-T100$date <- T100$date + years(1)
-
 T100_origin_country_info <- airport_country_matcher(T100$Origin, 
                                                          "Origin",
                                                          airport_codes)
@@ -71,6 +69,6 @@ T100 <- arrange(T100, ID)
 save_object(T100, "T100")
 cat("Done.\n")
 cat("Writing T100 data in parts...")
-disaggregate_in_parts(T100, "output/data/daily_airflow_T100_2019/usa/", passenger_flow_file_count) %>%
+disaggregate_in_parts(T100, "output/data/daily_airflow_T100_2020/usa/", passenger_flow_file_count) %>%
   invisible
 cat("Done.\n")

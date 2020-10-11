@@ -19,7 +19,7 @@ rename <- dplyr::rename
 cat("Loading constants... "); flush.console()
 
 start_date <- as.Date("01-01-2020", format = "%m-%d-%Y")
-end_date <- as.Date("08-01-2020", format = "%m-%d-%Y")
+end_date <- as.Date("03-31-2020", format = "%m-%d-%Y")
 month_seq <- seq.Date(from = start_date, to = end_date, by = "month")
 day_seq <- seq.Date(from = start_date, to = end_date, by = "day")
 ### How many different files to write (increase if running into RAM limitations)
@@ -55,6 +55,11 @@ disaggregate <- function(x) {
       value = Prediction,
       time = date
     )
+  while (nrow(x_sub) < 6) {
+    new_row = x_sub[nrow(x_sub), ]
+    new_row$time = new_row$time + months(1)
+    x_sub = rbind(x_sub, new_row)
+  }
   disaggregation <- td(x_sub ~ 1, to = "daily", method = "fast") %>%
     predict()
   disaggregation <- disaggregation[which(disaggregation$time %in% day_seq), ]

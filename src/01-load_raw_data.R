@@ -108,7 +108,7 @@ if (!"mao_dta_raw.Rds" %in% list.files("Rds")){
 }
 
 if (!"T100_raw.Rds" %in% list.files("Rds")){
-  T100_raw <- read.csv("data/monthly_air_flow/T_100_2019.csv")
+  T100_raw <- read.csv("data/monthly_air_flow/T_100_2020.csv")
   save_object(T100_raw, "T100_raw")
 }
 
