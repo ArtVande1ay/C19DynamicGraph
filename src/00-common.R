@@ -19,7 +19,7 @@ rename <- dplyr::rename
 cat("Loading constants... "); flush.console()
 
 start_date <- as.Date("01-01-2020", format = "%m-%d-%Y")
-end_date <- as.Date("03-31-2020", format = "%m-%d-%Y")
+end_date <- as.Date("08-31-2020", format = "%m-%d-%Y")
 month_seq <- seq.Date(from = start_date, to = end_date, by = "month")
 day_seq <- seq.Date(from = start_date, to = end_date, by = "day")
 ### How many different files to write (increase if running into RAM limitations)
